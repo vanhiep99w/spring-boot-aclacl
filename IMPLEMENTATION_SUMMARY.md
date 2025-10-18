@@ -138,6 +138,15 @@ Includes:
 - Testing instructions
 - Troubleshooting guide
 
+### 10. Advanced Permission Management
+
+- Introduced `AclPermissionService` with helpers for granular granting, revoking, inheritance management, and bulk operations.
+- Added `AclPermissionRegistry` exposing custom permissions (`SHARE`, `APPROVE`) and resolution utilities reused across the application.
+- Enabled role and group SID handling alongside ownership defaults through centralized service APIs.
+- Configured ACL inheritance for `Document` → `Comment` relationships and improved cache eviction strategies.
+- Implemented audit logging via `AclAuditService`, in-memory audit storage, and event listeners that capture permission changes.
+- Tuned EhCache with explicit TTL and LRU eviction for predictable ACL cache behaviour.
+
 ## Architecture Decisions
 
 ### Stateless REST Security
