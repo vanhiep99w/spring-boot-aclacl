@@ -1,8 +1,9 @@
 package com.example.acl.config;
 
+import com.example.acl.service.AclPermissionRegistry;
 import lombok.RequiredArgsConstructor;
-import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Ehcache;
+import net.sf.ehcache.config.CacheConfiguration;
+import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
 import org.springframework.cache.ehcache.EhCacheFactoryBean;
 import org.springframework.cache.ehcache.EhCacheManagerFactoryBean;
 import org.springframework.context.annotation.Bean;
@@ -10,7 +11,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.acls.AclPermissionEvaluator;
-import org.springframework.security.acls.domain.*;
+import org.springframework.security.acls.domain.AclAuthorizationStrategy;
+import org.springframework.security.acls.domain.AclAuthorizationStrategyImpl;
+import org.springframework.security.acls.domain.ConsoleAuditLogger;
+import org.springframework.security.acls.domain.DefaultPermissionGrantingStrategy;
+import org.springframework.security.acls.domain.EhCacheBasedAclCache;
 import org.springframework.security.acls.jdbc.BasicLookupStrategy;
 import org.springframework.security.acls.jdbc.JdbcMutableAclService;
 import org.springframework.security.acls.jdbc.LookupStrategy;
@@ -26,19 +31,16 @@ import javax.sql.DataSource;
 public class AclConfig {
 
     private final DataSource dataSource;
+    private final AclPermissionRegistry permissionRegistry;
 
     @Bean
     public AclAuthorizationStrategy aclAuthorizationStrategy() {
-        return new AclAuthorizationStrategyImpl(
-                new SimpleGrantedAuthority("ROLE_ADMIN")
-        );
+        return new AclAuthorizationStrategyImpl(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 
     @Bean
     public PermissionGrantingStrategy permissionGrantingStrategy() {
-        return new DefaultPermissionGrantingStrategy(
-                new ConsoleAuditLogger()
-        );
+        return new DefaultPermissionGrantingStrategy(new ConsoleAuditLogger());
     }
 
     @Bean
@@ -52,9 +54,16 @@ public class AclConfig {
 
     @Bean
     public EhCacheFactoryBean ehCacheAcl() {
+        CacheConfiguration cacheConfiguration = new CacheConfiguration()
+                .name("aclCache")
+                .memoryStoreEvictionPolicy(MemoryStoreEvictionPolicy.LRU)
+                .eternal(false)
+                .timeToIdleSeconds(300)
+                .timeToLiveSeconds(900)
+                .maxEntriesLocalHeap(2048);
         EhCacheFactoryBean factoryBean = new EhCacheFactoryBean();
         factoryBean.setCacheManager(ehCacheManager().getObject());
-        factoryBean.setCacheName("aclCache");
+        factoryBean.setCacheConfiguration(cacheConfiguration);
         return factoryBean;
     }
 
@@ -89,10 +98,11 @@ public class AclConfig {
 
     @Bean
     public MethodSecurityExpressionHandler methodSecurityExpressionHandler() {
-        DefaultMethodSecurityExpressionHandler expressionHandler = 
-                new DefaultMethodSecurityExpressionHandler();
+        DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
         AclPermissionEvaluator permissionEvaluator = new AclPermissionEvaluator(aclService());
+        permissionEvaluator.setPermissionFactory(permissionRegistry);
         expressionHandler.setPermissionEvaluator(permissionEvaluator);
+        expressionHandler.setPermissionFactory(permissionRegistry);
         return expressionHandler;
     }
 }

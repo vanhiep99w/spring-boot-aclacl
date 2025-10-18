@@ -84,6 +84,13 @@
 - [x] Transaction management configured
 - [x] Generic utility methods for permission management
 
+### 11. Permission Management Enhancements
+- [x] Centralized `AclPermissionService` covering grant, revoke, bulk, and inheritance workflows
+- [x] `AclPermissionRegistry` with custom permissions (`SHARE`, `APPROVE`) and resolution helpers
+- [x] Group and role SID handling alongside ownership defaults
+- [x] Document → Comment ACL inheritance with cache eviction updates
+- [x] Audit logging with in-memory store and application events
+
 ## Validation Steps
 
 ### Manual Testing
@@ -124,10 +131,10 @@ curl -u carol:password123 -X PUT \
 -- Expected: 5 users
 SELECT * FROM acl_sid;
 
--- Expected: 2 classes (Project, Document)
+-- Expected: 3 classes (Project, Document, Comment)
 SELECT * FROM acl_class;
 
--- Expected: 9 identities (4 projects + 5 documents)
+-- Expected: 14 identities (4 projects + 5 documents + 5 comments)
 SELECT * FROM acl_object_identity;
 
 -- Expected: Multiple entries (owner + shared permissions)
@@ -161,15 +168,16 @@ mvn test
 
 ### ACL Table Counts
 - `acl_sid`: 5 entries (admin, alice, bob, carol, dave)
-- `acl_class`: 2 entries (Project, Document)
-- `acl_object_identity`: 9 entries (4 projects, 5 documents)
-- `acl_entry`: 36+ entries (permissions)
+- `acl_class`: 3 entries (Project, Document, Comment)
+- `acl_object_identity`: 14 entries (4 projects, 5 documents, 5 comments)
+- `acl_entry`: ~80 entries (permissions including custom grants)
 
 ### Permission Structure
 Each owned object should have:
-- Owner: ADMIN (16), READ (1), WRITE (2), DELETE (8)
+- Owner: ADMIN (16), READ (1), WRITE (2), DELETE (8), SHARE (32)
 - Shared users: READ (1), WRITE (2)
-- Public objects: READ (1) for all users
+- Shared groups on documents: READ (1), APPROVE (64)
+- Public objects: READ (1) for all users via `ROLE_USER`
 
 ### API Behavior
 - Authenticated requests required for all `/api/**` endpoints
@@ -182,21 +190,21 @@ Each owned object should have:
 1. **H2-Specific**: Schema uses H2 syntax (@@IDENTITY)
 2. **Basic Auth**: HTTP Basic is used (consider JWT for production)
 3. **No ACL UI**: Permissions managed programmatically only
-4. **No Inheritance**: Parent-child ACL relationships not implemented
+4. **Limited Inheritance**: Currently enabled for Document → Comment relationships only
 5. **No Batch Checks**: Individual permission checks (may impact performance)
 
 ## Next Steps for Enhancement
 
 1. Implement JWT authentication
 2. Add REST API for ACL management
-3. Implement ACL inheritance
+3. Expand ACL inheritance to additional domain hierarchies
 4. Add batch permission checks for list operations
 5. Create admin UI for permission management
 6. Add comprehensive integration tests
 7. Migrate to production database (PostgreSQL/MySQL)
-8. Add audit logging for permission changes
-9. Implement custom permissions beyond standard ones
-10. Add group-based permission evaluation
+8. Persist and expose audit logs with reporting capabilities
+9. Build user-facing tooling for managing custom permissions
+10. Add runtime group and role permission administration features
 
 ## Files Reference
 
@@ -211,6 +219,17 @@ Each owned object should have:
 - `docs/ACL_SETUP.md`
 - `IMPLEMENTATION_SUMMARY.md`
 - `ACL_CHECKLIST.md` (this file)
+- `src/main/java/com/example/acl/security/CustomAclPermission.java`
+- `src/main/java/com/example/acl/service/AclPermissionRegistry.java`
+- `src/main/java/com/example/acl/service/AclSidResolver.java`
+- `src/main/java/com/example/acl/service/AclAuditOperation.java`
+- `src/main/java/com/example/acl/service/AclAuditLogEntry.java`
+- `src/main/java/com/example/acl/service/AclAuditLogStore.java`
+- `src/main/java/com/example/acl/service/InMemoryAclAuditLogStore.java`
+- `src/main/java/com/example/acl/service/AclPermissionChangeEvent.java`
+- `src/main/java/com/example/acl/service/AclAuditService.java`
+- `src/main/java/com/example/acl/service/AclAuditEventListener.java`
+- `src/main/java/com/example/acl/service/AclPermissionService.java`
 
 ### Modified Files
 - `pom.xml`
@@ -218,6 +237,11 @@ Each owned object should have:
 - `src/main/resources/application.properties`
 - `src/main/java/com/example/acl/config/SecurityConfig.java`
 - `src/main/java/com/example/acl/config/DataInitializer.java`
+- `src/main/java/com/example/acl/config/AclConfig.java`
+- `src/main/java/com/example/acl/service/AclInitializationService.java`
+- `src/test/java/com/example/acl/AclInfrastructureTests.java`
+- `IMPLEMENTATION_SUMMARY.md`
+- `ACL_CHECKLIST.md`
 
 ## Sign-off
 

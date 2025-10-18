@@ -1,8 +1,11 @@
 package com.example.acl.service;
 
+import com.example.acl.domain.Comment;
 import com.example.acl.domain.Document;
 import com.example.acl.domain.Project;
-import com.example.acl.domain.User;
+import com.example.acl.domain.Role;
+import com.example.acl.security.CustomAclPermission;
+import com.example.acl.repository.CommentRepository;
 import com.example.acl.repository.DocumentRepository;
 import com.example.acl.repository.ProjectRepository;
 import com.example.acl.repository.UserRepository;
@@ -12,9 +15,6 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.acls.domain.BasePermission;
-import org.springframework.security.acls.domain.ObjectIdentityImpl;
-import org.springframework.security.acls.domain.PrincipalSid;
-import org.springframework.security.acls.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,10 +25,11 @@ import java.util.List;
 @Slf4j
 public class AclInitializationService {
 
-    private final MutableAclService aclService;
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final DocumentRepository documentRepository;
+    private final CommentRepository commentRepository;
+    private final AclPermissionService aclPermissionService;
 
     @Bean
     @Order(2)
@@ -42,130 +43,65 @@ public class AclInitializationService {
 
     @Transactional
     public void bootstrapAclEntries() {
-        List<User> users = userRepository.findAll();
         List<Project> projects = projectRepository.findAll();
         List<Document> documents = documentRepository.findAll();
+        List<Comment> comments = commentRepository.findAll();
 
-        log.debug("Creating ACL entries for {} users, {} projects, {} documents", 
-                users.size(), projects.size(), documents.size());
+        log.debug("Creating ACL entries for {} projects, {} documents, {} comments", projects.size(), documents.size(), comments.size());
 
-        User admin = userRepository.findByUsername("admin").orElseThrow();
-        User alice = userRepository.findByUsername("alice").orElseThrow();
-        User bob = userRepository.findByUsername("bob").orElseThrow();
-        User carol = userRepository.findByUsername("carol").orElseThrow();
-        User dave = userRepository.findByUsername("dave").orElseThrow();
+        userRepository.findByUsername("admin").orElseThrow();
+        userRepository.findByUsername("alice").orElseThrow();
+        userRepository.findByUsername("bob").orElseThrow();
+        userRepository.findByUsername("carol").orElseThrow();
+        userRepository.findByUsername("dave").orElseThrow();
 
-        for (Project project : projects) {
-            createAclForProject(project);
-        }
+        projects.forEach(this::initializeProjectAcl);
+        documents.forEach(this::initializeDocumentAcl);
+        comments.forEach(this::initializeCommentAcl);
 
-        for (Document document : documents) {
-            createAclForDocument(document);
-        }
-
-        log.info("Created ACL entries for all domain objects");
+        log.info("Created ACL entries for all domain objects with inheritance and group support");
     }
 
-    private void createAclForProject(Project project) {
-        ObjectIdentity oid = new ObjectIdentityImpl(Project.class, project.getId());
-        
-        try {
-            MutableAcl acl = aclService.readAclById(oid);
-            log.debug("ACL already exists for project: {}", project.getName());
-            return;
-        } catch (NotFoundException e) {
-        }
+    private void initializeProjectAcl(Project project) {
+        aclPermissionService.applyOwnership(Project.class, project.getId(), project.getOwner().getUsername());
 
-        MutableAcl acl = aclService.createAcl(oid);
-        
-        PrincipalSid ownerSid = new PrincipalSid(project.getOwner().getUsername());
-        acl.setOwner(ownerSid);
-        
-        acl.insertAce(acl.getEntries().size(), BasePermission.ADMINISTRATION, ownerSid, true);
-        acl.insertAce(acl.getEntries().size(), BasePermission.READ, ownerSid, true);
-        acl.insertAce(acl.getEntries().size(), BasePermission.WRITE, ownerSid, true);
-        acl.insertAce(acl.getEntries().size(), BasePermission.DELETE, ownerSid, true);
-        
+        project.getSharedWith().forEach(user ->
+                aclPermissionService.grantToUser(Project.class, project.getId(), user.getUsername(), BasePermission.READ, BasePermission.WRITE)
+        );
+
+        project.getSharedWithGroups().forEach(group ->
+                aclPermissionService.grantToGroup(Project.class, project.getId(), group, BasePermission.READ, BasePermission.WRITE)
+        );
+
         if (project.isPublic()) {
-            PrincipalSid everyoneSid = new PrincipalSid("ROLE_USER");
-            acl.insertAce(acl.getEntries().size(), BasePermission.READ, everyoneSid, true);
+            aclPermissionService.grantToAuthority(Project.class, project.getId(), "ROLE_USER", BasePermission.READ);
         }
-        
-        project.getSharedWith().forEach(user -> {
-            PrincipalSid userSid = new PrincipalSid(user.getUsername());
-            acl.insertAce(acl.getEntries().size(), BasePermission.READ, userSid, true);
-            acl.insertAce(acl.getEntries().size(), BasePermission.WRITE, userSid, true);
-        });
-        
-        aclService.updateAcl(acl);
-        log.debug("Created ACL for project: {} (owner: {})", project.getName(), project.getOwner().getUsername());
+
+        aclPermissionService.grantToRole(Project.class, project.getId(), Role.MANAGER, BasePermission.READ);
     }
 
-    private void createAclForDocument(Document document) {
-        ObjectIdentity oid = new ObjectIdentityImpl(Document.class, document.getId());
-        
-        try {
-            MutableAcl acl = aclService.readAclById(oid);
-            log.debug("ACL already exists for document: {}", document.getTitle());
-            return;
-        } catch (NotFoundException e) {
+    private void initializeDocumentAcl(Document document) {
+        aclPermissionService.applyOwnership(Document.class, document.getId(), document.getAuthor().getUsername());
+
+        if (document.getProject() != null) {
+            aclPermissionService.setParent(Document.class, document.getId(), Project.class, document.getProject().getId(), true);
         }
 
-        MutableAcl acl = aclService.createAcl(oid);
-        
-        PrincipalSid ownerSid = new PrincipalSid(document.getAuthor().getUsername());
-        acl.setOwner(ownerSid);
-        
-        acl.insertAce(acl.getEntries().size(), BasePermission.ADMINISTRATION, ownerSid, true);
-        acl.insertAce(acl.getEntries().size(), BasePermission.READ, ownerSid, true);
-        acl.insertAce(acl.getEntries().size(), BasePermission.WRITE, ownerSid, true);
-        acl.insertAce(acl.getEntries().size(), BasePermission.DELETE, ownerSid, true);
-        
+        document.getSharedWith().forEach(user ->
+                aclPermissionService.grantToUser(Document.class, document.getId(), user.getUsername(), BasePermission.READ, BasePermission.WRITE)
+        );
+
+        document.getSharedWithGroups().forEach(group ->
+                aclPermissionService.grantToGroup(Document.class, document.getId(), group, BasePermission.READ, CustomAclPermission.APPROVE)
+        );
+
         if (document.isPublic()) {
-            PrincipalSid everyoneSid = new PrincipalSid("ROLE_USER");
-            acl.insertAce(acl.getEntries().size(), BasePermission.READ, everyoneSid, true);
+            aclPermissionService.grantToAuthority(Document.class, document.getId(), "ROLE_USER", BasePermission.READ);
         }
-        
-        document.getSharedWith().forEach(user -> {
-            PrincipalSid userSid = new PrincipalSid(user.getUsername());
-            acl.insertAce(acl.getEntries().size(), BasePermission.READ, userSid, true);
-            acl.insertAce(acl.getEntries().size(), BasePermission.WRITE, userSid, true);
-        });
-        
-        aclService.updateAcl(acl);
-        log.debug("Created ACL for document: {} (author: {})", document.getTitle(), document.getAuthor().getUsername());
     }
 
-    public void grantPermission(Class<?> domainClass, Long objectId, String username, Permission permission) {
-        ObjectIdentity oid = new ObjectIdentityImpl(domainClass, objectId);
-        
-        MutableAcl acl;
-        try {
-            acl = (MutableAcl) aclService.readAclById(oid);
-        } catch (NotFoundException e) {
-            acl = aclService.createAcl(oid);
-        }
-        
-        PrincipalSid sid = new PrincipalSid(username);
-        acl.insertAce(acl.getEntries().size(), permission, sid, true);
-        aclService.updateAcl(acl);
-    }
-
-    public void revokePermission(Class<?> domainClass, Long objectId, String username, Permission permission) {
-        ObjectIdentity oid = new ObjectIdentityImpl(domainClass, objectId);
-        
-        MutableAcl acl = (MutableAcl) aclService.readAclById(oid);
-        PrincipalSid sid = new PrincipalSid(username);
-        
-        List<AccessControlEntry> entries = acl.getEntries();
-        for (int i = 0; i < entries.size(); i++) {
-            AccessControlEntry entry = entries.get(i);
-            if (entry.getSid().equals(sid) && entry.getPermission().equals(permission)) {
-                acl.deleteAce(i);
-                break;
-            }
-        }
-        
-        aclService.updateAcl(acl);
+    private void initializeCommentAcl(Comment comment) {
+        aclPermissionService.applyOwnership(Comment.class, comment.getId(), comment.getAuthor().getUsername());
+        aclPermissionService.setParent(Comment.class, comment.getId(), Document.class, comment.getDocument().getId(), true);
     }
 }
