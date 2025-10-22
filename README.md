@@ -93,9 +93,22 @@ The application provides full CRUD REST APIs for:
 - **Projects**: `/api/projects` - Create, read, update, delete projects with ACL enforcement
 - **Documents**: `/api/documents` - Manage documents within projects with inheritance
 - **Comments**: `/api/comments` - Add comments to documents with cascading permissions
+- **Permission Management**: `/api/permissions` - Grant, revoke, and query permissions with ACL discovery
+
+#### Permission Management Endpoints
+
+- `POST /api/permissions/grant` - Grant permissions to users, roles, or groups
+- `POST /api/permissions/revoke` - Revoke permissions from subjects
+- `POST /api/permissions/bulk-update` - Bulk grant or revoke permissions on multiple resources
+- `GET /api/permissions/check` - Query effective permissions for current user on a resource
+- `GET /api/permissions/accessible` - List all accessible resources of a given type
+- `GET /api/permissions/inheritance` - Check permission inheritance chain for a resource
+- `GET /api/permissions/available` - List all available permissions
+- `GET /api/permissions/custom-demo` - Demonstrate custom permission usage
 
 ### Documentation
 
+- **Permission API**: See [docs/PERMISSION_API.md](docs/PERMISSION_API.md) for detailed permission management documentation
 - **API Examples**: See [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md) for detailed usage examples
 - **Setup Guide**: See [docs/ACL_SETUP.md](docs/ACL_SETUP.md) for comprehensive documentation
 - **Implementation Summary**: See [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) for technical details
