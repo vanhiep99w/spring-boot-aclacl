@@ -51,6 +51,11 @@ The application now includes a complete Spring Security ACL (Access Control List
 - **Method-Level Security**: Support for @PreAuthorize and @PostAuthorize annotations
 - **EhCache Integration**: Performance-optimized ACL lookups
 - **Sample ACL Data**: Bootstrapped permissions for all Projects and Documents
+- **Full CRUD REST APIs**: Complete REST controllers for Project, Document, and Comment with ACL enforcement
+- **DTOs & Mappers**: Clean separation between domain entities and API representations
+- **Automatic Owner Assignment**: Creators automatically become owners with full permissions
+- **ACL Inheritance**: Document → Project, Comment → Document permission cascading
+- **Exception Handling**: Comprehensive error responses for access denied and validation failures
 
 ### Quick Start
 
@@ -64,17 +69,34 @@ The application now includes a complete Spring Security ACL (Access Control List
    curl -u admin:admin123 http://localhost:8080/api/acl/status
    ```
 
-3. Test document access:
+3. Create a project:
    ```bash
-   # Alice can read her own document
-   curl -u alice:password123 http://localhost:8080/api/documents/1
-   
-   # Dave cannot read Alice's private document (403 Forbidden)
-   curl -u dave:password123 http://localhost:8080/api/documents/1
+   curl -X POST http://localhost:8080/api/projects \
+     -u alice:password123 \
+     -H "Content-Type: application/json" \
+     -d '{"name": "My Project", "description": "Test project", "isPublic": false}'
    ```
+
+4. Test access control:
+   ```bash
+   # Alice can access her project
+   curl -u alice:password123 http://localhost:8080/api/projects/1
+   
+   # Dave cannot access Alice's private project (403 Forbidden)
+   curl -u dave:password123 http://localhost:8080/api/projects/1
+   ```
+
+### API Endpoints
+
+The application provides full CRUD REST APIs for:
+
+- **Projects**: `/api/projects` - Create, read, update, delete projects with ACL enforcement
+- **Documents**: `/api/documents` - Manage documents within projects with inheritance
+- **Comments**: `/api/comments` - Add comments to documents with cascading permissions
 
 ### Documentation
 
+- **API Examples**: See [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md) for detailed usage examples
 - **Setup Guide**: See [docs/ACL_SETUP.md](docs/ACL_SETUP.md) for comprehensive documentation
 - **Implementation Summary**: See [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) for technical details
 
