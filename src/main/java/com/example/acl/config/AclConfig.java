@@ -1,5 +1,9 @@
 package com.example.acl.config;
 
+import com.example.acl.repository.DocumentRepository;
+import com.example.acl.repository.ProjectRepository;
+import com.example.acl.repository.UserRepository;
+import com.example.acl.security.CustomMethodSecurityExpressionHandler;
 import com.example.acl.service.AclPermissionRegistry;
 import lombok.RequiredArgsConstructor;
 import net.sf.ehcache.config.CacheConfiguration;
@@ -8,7 +12,6 @@ import org.springframework.cache.ehcache.EhCacheFactoryBean;
 import org.springframework.cache.ehcache.EhCacheManagerFactoryBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.acls.AclPermissionEvaluator;
 import org.springframework.security.acls.domain.AclAuthorizationStrategy;
@@ -32,6 +35,11 @@ public class AclConfig {
 
     private final DataSource dataSource;
     private final AclPermissionRegistry permissionRegistry;
+
+    // Repositories used by custom method security expressions
+    private final DocumentRepository documentRepository;
+    private final ProjectRepository projectRepository;
+    private final UserRepository userRepository;
 
     @Bean
     public AclAuthorizationStrategy aclAuthorizationStrategy() {
@@ -96,9 +104,18 @@ public class AclConfig {
         return service;
     }
 
+    /**
+     * Registers a custom MethodSecurityExpressionHandler that supports:
+     * - Spring Security ACL checks via hasPermission/hasPermission(object, permission)
+     * - Domain-specific helpers like isDocumentOwner(..) and hasProjectRole(..)
+     */
     @Bean
     public MethodSecurityExpressionHandler methodSecurityExpressionHandler() {
-        DefaultMethodSecurityExpressionHandler expressionHandler = new DefaultMethodSecurityExpressionHandler();
+        CustomMethodSecurityExpressionHandler expressionHandler = new CustomMethodSecurityExpressionHandler(
+                documentRepository,
+                projectRepository,
+                userRepository
+        );
         AclPermissionEvaluator permissionEvaluator = new AclPermissionEvaluator(aclService());
         permissionEvaluator.setPermissionFactory(permissionRegistry);
         expressionHandler.setPermissionEvaluator(permissionEvaluator);

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,7 +20,11 @@ public class AclTestController {
 
     private final JdbcTemplate jdbcTemplate;
 
+    /**
+     * Administrative endpoint: restrict to ADMINs only.
+     */
     @GetMapping("/status")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getAclStatus() {
         Map<String, Object> status = new HashMap<>();
         
