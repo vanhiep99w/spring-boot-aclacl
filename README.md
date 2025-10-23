@@ -14,7 +14,7 @@ This project is a **comprehensive, production-ready example** of implementing **
 - ✅ **Permission Inheritance**: Documents inherit from Projects, Comments from Documents
 - ✅ **Multiple Subject Types**: Grant permissions to users, roles, or groups
 - ✅ **Custom Permissions**: Beyond READ/WRITE, includes SHARE and APPROVE
-- ✅ **Performance Optimized**: EhCache integration for ACL lookups
+- ✅ **Performance Optimized**: Caffeine cache integration for ACL lookups
 - ✅ **Audit Trail**: Complete audit log of all permission changes
 - ✅ **Discovery API**: Find what resources a user can access
 - ✅ **Comprehensive Documentation**: Developer guide, API specs, and diagrams
@@ -38,7 +38,7 @@ Perfect for understanding ACL in:
 | H2 Database | 2.x | In-memory database |
 | Jakarta Validation | 3.x | Input validation |
 | Lombok | 1.18.x | Boilerplate reduction |
-| EhCache | 2.10.x | ACL caching |
+| Caffeine | 3.x | ACL caching |
 | JUnit 5 | 5.x | Testing framework |
 
 ## Architecture

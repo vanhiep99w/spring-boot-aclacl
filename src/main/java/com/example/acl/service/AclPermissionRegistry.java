@@ -2,8 +2,8 @@ package com.example.acl.service;
 
 import com.example.acl.security.CustomAclPermission;
 import org.springframework.security.acls.domain.BasePermission;
+import org.springframework.security.acls.domain.PermissionFactory;
 import org.springframework.security.acls.model.Permission;
-import org.springframework.security.acls.model.PermissionFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -63,6 +63,13 @@ public class AclPermissionRegistry implements PermissionFactory {
             throw new IllegalArgumentException("Unknown permission name: " + name);
         }
         return permission;
+    }
+
+    @Override
+    public List<Permission> buildFromNames(List<String> names) {
+        return names.stream()
+                .map(this::buildFromName)
+                .collect(Collectors.toList());
     }
 
     public Optional<String> resolveName(Permission permission) {
