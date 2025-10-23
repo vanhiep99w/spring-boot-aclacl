@@ -1,0 +1,1126 @@
+openapi: 3.0.3
+info:
+  title: Spring Boot ACL Demo API
+  description: |
+    REST API for demonstrating Spring Security Access Control Lists (ACL) with object-level permissions.
+    
+    ## Authentication
+    All endpoints require HTTP Basic Authentication.
+    
+    ## Default Users
+    - **admin** / admin123 (ADMIN role)
+    - **alice** / password123 (MANAGER role)
+    - **bob** / password123 (MEMBER role)
+    - **carol** / password123 (MEMBER role)
+    - **dave** / password123 (VIEWER role)
+  version: 1.0.0
+  contact:
+    name: ACL Demo Support
+    email: support@example.com
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+tags:
+  - name: Projects
+    description: Project CRUD operations with ACL enforcement
+  - name: Documents
+    description: Document CRUD operations with ACL inheritance
+  - name: Comments
+    description: Comment CRUD operations with ACL inheritance
+  - name: Permissions
+    description: Permission management and discovery
+  - name: ACL Diagnostics
+    description: ACL infrastructure status and diagnostics
+
+security:
+  - basicAuth: []
+
+paths:
+  /api/projects:
+    get:
+      tags:
+        - Projects
+      summary: List all projects accessible to the current user
+      description: Returns only projects where the user is owner, has ACL permissions, or are public (PostFilter applied)
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectResponse'
+              example:
+                - id: 1
+                  name: "Engineering Project"
+                  description: "Core engineering project"
+                  ownerUsername: "alice"
+                  isPublic: false
+                  createdAt: "2024-01-15T10:00:00"
+                  updatedAt: "2024-01-15T10:00:00"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    post:
+      tags:
+        - Projects
+      summary: Create a new project
+      description: Creates a project and automatically assigns ownership to the creator with full permissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+            example:
+              name: "My New Project"
+              description: "A new confidential project"
+              isPublic: false
+      responses:
+        '201':
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  
+  /api/projects/{id}:
+    get:
+      tags:
+        - Projects
+      summary: Get a specific project by ID
+      description: Requires READ permission on the project
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    put:
+      tags:
+        - Projects
+      summary: Update a project
+      description: Requires WRITE permission on the project
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '200':
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    delete:
+      tags:
+        - Projects
+      summary: Delete a project
+      description: Requires DELETE permission on the project
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Project deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/documents:
+    get:
+      tags:
+        - Documents
+      summary: List all documents accessible to the current user
+      description: Returns only documents where the user has ACL permissions or are public
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    
+    post:
+      tags:
+        - Documents
+      summary: Create a new document
+      description: Creates a document and automatically assigns ownership to the creator. Inherits ACL from parent project.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentCreateRequest'
+      responses:
+        '201':
+          description: Document created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - User doesn't have CREATE permission on parent project
+
+  /api/documents/{id}:
+    get:
+      tags:
+        - Documents
+      summary: Get a specific document by ID
+      description: Requires READ permission on the document (may be inherited from project)
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    put:
+      tags:
+        - Documents
+      summary: Update a document
+      description: Requires WRITE permission on the document
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentUpdateRequest'
+      responses:
+        '200':
+          description: Document updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    
+    delete:
+      tags:
+        - Documents
+      summary: Delete a document
+      description: Requires DELETE permission on the document
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Document deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/comments:
+    get:
+      tags:
+        - Comments
+      summary: List all comments accessible to the current user
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentResponse'
+    
+    post:
+      tags:
+        - Comments
+      summary: Create a new comment
+      description: Creates a comment on a document. Inherits ACL from parent document.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreateRequest'
+      responses:
+        '201':
+          description: Comment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/comments/{id}:
+    get:
+      tags:
+        - Comments
+      summary: Get a specific comment by ID
+      description: Requires READ permission (inherited from parent document)
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    
+    put:
+      tags:
+        - Comments
+      summary: Update a comment
+      description: Requires WRITE permission or be the comment author
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentUpdateRequest'
+      responses:
+        '200':
+          description: Comment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommentResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    
+    delete:
+      tags:
+        - Comments
+      summary: Delete a comment
+      description: Requires DELETE permission or be the comment author
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Comment deleted successfully
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/comments/document/{documentId}:
+    get:
+      tags:
+        - Comments
+      summary: Get all comments for a specific document
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentResponse'
+
+  /api/permissions/grant:
+    post:
+      tags:
+        - Permissions
+      summary: Grant permissions to a user, role, or group
+      description: Requires ADMIN or MANAGER role
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PermissionGrantRequest'
+            example:
+              resourceType: "PROJECT"
+              resourceId: 1
+              subjectType: "USER"
+              subjectIdentifier: "bob"
+              permissions: ["READ", "WRITE"]
+      responses:
+        '200':
+          description: Permissions granted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionOperationResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          description: Forbidden - Requires ADMIN or MANAGER role
+
+  /api/permissions/revoke:
+    post:
+      tags:
+        - Permissions
+      summary: Revoke permissions from a user, role, or group
+      description: Requires ADMIN or MANAGER role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PermissionRevokeRequest'
+      responses:
+        '200':
+          description: Permissions revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionOperationResponse'
+        '403':
+          description: Forbidden - Requires ADMIN or MANAGER role
+
+  /api/permissions/bulk-update:
+    post:
+      tags:
+        - Permissions
+      summary: Bulk grant or revoke permissions on multiple resources
+      description: Requires ADMIN or MANAGER role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkPermissionUpdateRequest'
+            example:
+              resourceType: "DOCUMENT"
+              resourceIds: [1, 2, 3]
+              subjectType: "GROUP"
+              subjectIdentifier: "ENGINEERING"
+              operation: "GRANT"
+              permissions: ["READ", "WRITE"]
+      responses:
+        '200':
+          description: Bulk operation completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkPermissionUpdateResponse'
+
+  /api/permissions/check:
+    get:
+      tags:
+        - Permissions
+      summary: Check effective permissions for current user on a resource
+      description: Returns granted and inherited permissions
+      parameters:
+        - name: resourceType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [PROJECT, DOCUMENT, COMMENT]
+        - name: resourceId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionCheckResponse'
+              example:
+                resourceType: "DOCUMENT"
+                resourceId: 1
+                subject: "bob"
+                grantedPermissions: ["READ", "WRITE"]
+                inheritedPermissions: ["SHARE"]
+                parentResource: "com.example.acl.domain.Project:1"
+                hasAccess: true
+
+  /api/permissions/accessible:
+    get:
+      tags:
+        - Permissions
+      summary: List all accessible resources of a given type for current user
+      parameters:
+        - name: resourceType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [PROJECT, DOCUMENT, COMMENT]
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessibleResourcesResponse'
+
+  /api/permissions/inheritance:
+    get:
+      tags:
+        - Permissions
+      summary: Check permission inheritance chain for a resource
+      parameters:
+        - name: resourceType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [PROJECT, DOCUMENT, COMMENT]
+        - name: resourceId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InheritanceCheckResponse'
+
+  /api/permissions/available:
+    get:
+      tags:
+        - Permissions
+      summary: List all available permissions in the system
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailablePermissionsResponse'
+              example:
+                permissions: ["ADMINISTRATION", "APPROVE", "CREATE", "DELETE", "READ", "SHARE", "WRITE"]
+                description:
+                  READ: "View the resource"
+                  WRITE: "Modify the resource"
+                  CREATE: "Create child resources"
+                  DELETE: "Delete the resource"
+                  ADMINISTRATION: "Full control including permission management"
+                  SHARE: "Share the resource with others"
+                  APPROVE: "Approve changes to the resource"
+
+  /api/permissions/custom-demo:
+    get:
+      tags:
+        - Permissions
+      summary: Demonstrate custom permission usage
+      description: Shows custom SHARE and APPROVE permissions. Requires ADMIN role.
+      parameters:
+        - name: resourceType
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: resourceId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomPermissionDemoResponse'
+
+  /api/acl/status:
+    get:
+      tags:
+        - ACL Diagnostics
+      summary: Get ACL infrastructure status
+      description: Returns counts of ACL tables for diagnostics
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AclStatusResponse'
+              example:
+                aclSids: 10
+                aclClasses: 3
+                aclObjectIdentities: 14
+                aclEntries: 70
+                status: "ACL infrastructure is operational"
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      description: Resource ID
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+    ProjectCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: Project name
+        description:
+          type: string
+          maxLength: 500
+          description: Project description
+        isPublic:
+          type: boolean
+          default: false
+          description: Whether the project is publicly accessible
+
+    ProjectUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        isPublic:
+          type: boolean
+
+    ProjectResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+        ownerUsername:
+          type: string
+        isPublic:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DocumentCreateRequest:
+      type: object
+      required:
+        - title
+        - content
+        - projectId
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        content:
+          type: string
+        projectId:
+          type: integer
+          format: int64
+        isPublic:
+          type: boolean
+          default: false
+
+    DocumentUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        isPublic:
+          type: boolean
+
+    DocumentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        content:
+          type: string
+        projectId:
+          type: integer
+          format: int64
+        projectName:
+          type: string
+        authorUsername:
+          type: string
+        isPublic:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CommentCreateRequest:
+      type: object
+      required:
+        - content
+        - documentId
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        documentId:
+          type: integer
+          format: int64
+
+    CommentUpdateRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1000
+
+    CommentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        content:
+          type: string
+        documentId:
+          type: integer
+          format: int64
+        documentTitle:
+          type: string
+        authorUsername:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PermissionGrantRequest:
+      type: object
+      required:
+        - resourceType
+        - resourceId
+        - subjectType
+        - subjectIdentifier
+        - permissions
+      properties:
+        resourceType:
+          type: string
+          enum: [PROJECT, DOCUMENT, COMMENT]
+        resourceId:
+          type: integer
+          format: int64
+        subjectType:
+          type: string
+          enum: [USER, ROLE, GROUP]
+          description: "USER for individual users, ROLE for system roles, GROUP for organizational groups"
+        subjectIdentifier:
+          type: string
+          description: "Username, role name (ADMIN/MANAGER/MEMBER/VIEWER), or group name (ENGINEERING/MARKETING/SALES/OPERATIONS/EXECUTIVE)"
+        permissions:
+          type: array
+          items:
+            type: string
+            enum: [READ, WRITE, CREATE, DELETE, ADMINISTRATION, SHARE, APPROVE]
+          minItems: 1
+
+    PermissionRevokeRequest:
+      type: object
+      required:
+        - resourceType
+        - resourceId
+        - subjectType
+        - subjectIdentifier
+        - permissions
+      properties:
+        resourceType:
+          type: string
+          enum: [PROJECT, DOCUMENT, COMMENT]
+        resourceId:
+          type: integer
+          format: int64
+        subjectType:
+          type: string
+          enum: [USER, ROLE, GROUP]
+        subjectIdentifier:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+
+    BulkPermissionUpdateRequest:
+      type: object
+      required:
+        - resourceType
+        - resourceIds
+        - subjectType
+        - subjectIdentifier
+        - operation
+        - permissions
+      properties:
+        resourceType:
+          type: string
+          enum: [PROJECT, DOCUMENT, COMMENT]
+        resourceIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          minItems: 1
+        subjectType:
+          type: string
+          enum: [USER, ROLE, GROUP]
+        subjectIdentifier:
+          type: string
+        operation:
+          type: string
+          enum: [GRANT, REVOKE]
+        permissions:
+          type: array
+          items:
+            type: string
+          minItems: 1
+
+    PermissionOperationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: integer
+          format: int64
+        subject:
+          type: string
+
+    BulkPermissionUpdateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        operation:
+          type: string
+        resourcesAffected:
+          type: integer
+        resourceType:
+          type: string
+
+    PermissionCheckResponse:
+      type: object
+      properties:
+        resourceType:
+          type: string
+        resourceId:
+          type: integer
+          format: int64
+        subject:
+          type: string
+        grantedPermissions:
+          type: array
+          items:
+            type: string
+        inheritedPermissions:
+          type: array
+          items:
+            type: string
+        parentResource:
+          type: string
+        hasAccess:
+          type: boolean
+
+    AccessibleResourcesResponse:
+      type: object
+      properties:
+        subject:
+          type: string
+        resourceType:
+          type: string
+        totalCount:
+          type: integer
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceAccessInfo'
+
+    ResourceAccessInfo:
+      type: object
+      properties:
+        resourceId:
+          type: integer
+          format: int64
+        resourceName:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+        accessSource:
+          type: string
+          description: "ACL, PUBLIC, or OWNER"
+
+    InheritanceCheckResponse:
+      type: object
+      properties:
+        resourceType:
+          type: string
+        resourceId:
+          type: integer
+          format: int64
+        resourceName:
+          type: string
+        hasParent:
+          type: boolean
+        entriesInheriting:
+          type: boolean
+        directPermissions:
+          type: array
+          items:
+            type: string
+        inheritedPermissions:
+          type: array
+          items:
+            type: string
+        parent:
+          $ref: '#/components/schemas/ParentResourceInfo'
+
+    ParentResourceInfo:
+      type: object
+      properties:
+        resourceType:
+          type: string
+        resourceId:
+          type: integer
+          format: int64
+        resourceName:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+
+    AvailablePermissionsResponse:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items:
+            type: string
+        description:
+          type: object
+          additionalProperties:
+            type: string
+
+    CustomPermissionDemoResponse:
+      type: object
+      properties:
+        resourceType:
+          type: string
+        resourceId:
+          type: integer
+          format: int64
+        customPermissions:
+          type: array
+          items:
+            type: string
+        description:
+          type: object
+          additionalProperties:
+            type: string
+        usage:
+          type: object
+          additionalProperties:
+            type: string
+        example:
+          type: string
+
+    AclStatusResponse:
+      type: object
+      properties:
+        aclSids:
+          type: integer
+          description: Number of security identities in ACL
+        aclClasses:
+          type: integer
+          description: Number of domain classes in ACL
+        aclObjectIdentities:
+          type: integer
+          description: Number of object identities in ACL
+        aclEntries:
+          type: integer
+          description: Number of ACL entries (permissions)
+        status:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        validationErrors:
+          type: object
+          additionalProperties:
+            type: string
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2024-01-15T10:00:00"
+            status: 401
+            error: "Unauthorized"
+            message: "Full authentication is required to access this resource"
+
+    Forbidden:
+      description: Access denied - insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2024-01-15T10:00:00"
+            status: 403
+            error: "Forbidden"
+            message: "You do not have permission to access this resource"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2024-01-15T10:00:00"
+            status: 404
+            error: "Not Found"
+            message: "Resource not found with id: 999"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+          example:
+            timestamp: "2024-01-15T10:00:00"
+            status: 400
+            error: "Validation Failed"
+            validationErrors:
+              name: "Project name must be between 3 and 100 characters"
