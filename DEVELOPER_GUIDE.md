@@ -27,7 +27,7 @@ This Spring Boot ACL Demo is a comprehensive example of implementing **fine-grai
 - ✅ **ACL Inheritance**: Permissions cascade from Projects → Documents → Comments
 - ✅ **Multiple Subject Types**: Grant permissions to users, roles, or groups
 - ✅ **Custom Permissions**: Beyond READ/WRITE, includes SHARE and APPROVE permissions
-- ✅ **Performance Optimized**: EhCache integration for ACL lookups
+- ✅ **Performance Optimized**: Caffeine cache integration for ACL lookups
 - ✅ **Audit Trail**: Complete audit log of all permission changes
 - ✅ **Discovery API**: Find what resources a user can access
 - ✅ **REST API**: Full CRUD operations with ACL enforcement
@@ -62,7 +62,7 @@ This demo is ideal for understanding ACL concepts in:
 │         Spring Security ACL Infrastructure                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
 │  │  ACL Cache   │  │  ACL Service │  │ Lookup       │     │
-│  │  (EhCache)   │  │  (JDBC)      │  │ Strategy     │     │
+│  │  (Caffeine)  │  │  (JDBC)      │  │ Strategy     │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 └────────────────────┬────────────────────────────────────────┘
                      │
@@ -91,7 +91,7 @@ This demo is ideal for understanding ACL concepts in:
 
 #### 3. ACL Infrastructure
 - **MutableAclService**: JDBC-based ACL management
-- **AclCache**: EhCache for performance optimization
+- **AclCache**: Caffeine cache for performance optimization
 - **MethodSecurityExpressionHandler**: Custom expressions for domain-specific checks
 - **Permission Registry**: Manages standard and custom permissions
 
@@ -289,13 +289,23 @@ Project (id: 1)
 
 ### ACL Caching
 
-To improve performance, ACL lookups are cached using EhCache:
+To improve performance, ACL lookups are cached using Caffeine:
 
 ```java
 @Bean
-public AclCache aclCache() {
-    return new EhCacheBasedAclCache(
-        ehCacheAcl().getObject(),
+public CacheManager cacheManager() {
+    CaffeineCacheManager cacheManager = new CaffeineCacheManager("aclCache");
+    cacheManager.setCaffeine(Caffeine.newBuilder()
+            .maximumSize(2048)
+            .expireAfterWrite(15, TimeUnit.MINUTES)
+            .expireAfterAccess(5, TimeUnit.MINUTES));
+    return cacheManager;
+}
+
+@Bean
+public AclCache aclCache(CacheManager cacheManager) {
+    return new SpringCacheBasedAclCache(
+        cacheManager.getCache("aclCache"),
         permissionGrantingStrategy(),
         aclAuthorizationStrategy()
     );
@@ -303,10 +313,10 @@ public AclCache aclCache() {
 ```
 
 **Cache Configuration:**
-- **TTL**: 900 seconds (15 minutes)
-- **Idle Time**: 300 seconds (5 minutes)
+- **TTL**: 15 minutes (expireAfterWrite)
+- **Idle Time**: 5 minutes (expireAfterAccess)
 - **Max Entries**: 2048
-- **Eviction Policy**: LRU (Least Recently Used)
+- **Eviction Policy**: Size-based eviction
 
 **Cache Behavior:**
 - ACL lookups first check the cache
@@ -1010,11 +1020,13 @@ aclPermissionService.evictCache(domainClass, identifier);
 3. Reduce cache TTL in development:
 ```java
 @Bean
-public EhCacheFactoryBean ehCacheAcl() {
-    CacheConfiguration config = new CacheConfiguration()
-        .timeToLiveSeconds(60)  // Shorter TTL for development
-        .timeToIdleSeconds(30);
-    // ...
+public CacheManager cacheManager() {
+    CaffeineCacheManager cacheManager = new CaffeineCacheManager("aclCache");
+    cacheManager.setCaffeine(Caffeine.newBuilder()
+            .maximumSize(2048)
+            .expireAfterWrite(60, TimeUnit.SECONDS)  // Shorter TTL for development
+            .expireAfterAccess(30, TimeUnit.SECONDS));
+    return cacheManager;
 }
 ```
 

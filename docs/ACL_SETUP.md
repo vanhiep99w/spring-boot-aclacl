@@ -35,7 +35,7 @@ Features:
 Beans configured:
 - `AclAuthorizationStrategy`: Controls who can modify ACLs (admin role)
 - `PermissionGrantingStrategy`: Determines if permissions are granted
-- `AclCache`: EhCache-based caching for ACL lookups
+- `AclCache`: Caffeine cache-based caching for ACL lookups
 - `LookupStrategy`: BasicLookupStrategy for reading ACL data
 - `MutableAclService`: JdbcMutableAclService for managing ACL entries
 - `MethodSecurityExpressionHandler`: Enables ACL expressions in security annotations
@@ -161,9 +161,9 @@ The application uses stateless session management, which means:
 - Each request must include authentication credentials (HTTP Basic)
 - Suitable for REST APIs and microservices
 
-### EhCache for ACL
+### Caffeine Cache for ACL
 
-ACL lookups are cached using EhCache to improve performance:
+ACL lookups are cached using Caffeine cache to improve performance:
 - Reduces database queries
 - Automatically invalidated on ACL updates
 - Configured in `AclConfig.java`
